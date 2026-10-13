@@ -3,26 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
-const demoProducts = [
-  { id: 1, name: 'Tomato', category: 'Vegetables', pricePerKg: 28, quantityKg: 120, farmerName: 'Ravi Kumar', location: 'Village Market' },
-  { id: 2, name: 'Onion', category: 'Vegetables', pricePerKg: 32, quantityKg: 90, farmerName: 'Lakshmi Devi', location: 'Greenfield Village' },
-  { id: 3, name: 'Potato', category: 'Vegetables', pricePerKg: 25, quantityKg: 100, farmerName: 'Ramesh', location: 'Village Market' },
-  { id: 4, name: 'Carrot', category: 'Vegetables', pricePerKg: 40, quantityKg: 50, farmerName: 'Anitha', location: 'Sunrise Village' },
-  { id: 5, name: 'Spinach', category: 'Vegetables', pricePerKg: 18, quantityKg: 45, farmerName: 'Anitha', location: 'Sunrise Village' },
-  { id: 6, name: 'Cabbage', category: 'Vegetables', pricePerKg: 30, quantityKg: 60, farmerName: 'Ravi Kumar', location: 'Village Market' },
-  { id: 7, name: 'Cauliflower', category: 'Vegetables', pricePerKg: 35, quantityKg: 40, farmerName: 'Lakshmi Devi', location: 'Greenfield Village' },
-  { id: 8, name: 'Green Chilli', category: 'Vegetables', pricePerKg: 50, quantityKg: 20, farmerName: 'Suresh', location: 'Riverbank Village' },
-  { id: 9, name: 'Cucumber', category: 'Vegetables', pricePerKg: 25, quantityKg: 35, farmerName: 'Ramesh', location: 'Village Market' },
-  { id: 10, name: 'Brinjal', category: 'Vegetables', pricePerKg: 32, quantityKg: 30, farmerName: 'Anitha', location: 'Sunrise Village' },
-  { id: 11, name: 'Mango', category: 'Fruits', pricePerKg: 65, quantityKg: 75, farmerName: 'Suresh', location: 'Riverbank Village' },
-  { id: 12, name: 'Banana', category: 'Fruits', pricePerKg: 40, quantityKg: 80, farmerName: 'Ravi Kumar', location: 'Village Market' },
-  { id: 13, name: 'Apple', category: 'Fruits', pricePerKg: 120, quantityKg: 25, farmerName: 'Lakshmi Devi', location: 'Greenfield Village' },
-  { id: 14, name: 'Orange', category: 'Fruits', pricePerKg: 60, quantityKg: 40, farmerName: 'Suresh', location: 'Riverbank Village' },
-  { id: 15, name: 'Papaya', category: 'Fruits', pricePerKg: 35, quantityKg: 30, farmerName: 'Ramesh', location: 'Village Market' },
-  { id: 16, name: 'Guava', category: 'Fruits', pricePerKg: 45, quantityKg: 35, farmerName: 'Anitha', location: 'Sunrise Village' },
-  { id: 17, name: 'Watermelon', category: 'Fruits', pricePerKg: 25, quantityKg: 90, farmerName: 'Ravi Kumar', location: 'Village Market' },
-];
-
 const productImages = {
   tomato: '🍅',
   onion: '🧅',
@@ -62,41 +42,55 @@ function getQuantity(product) {
 }
 
 export default function App() {
-  const [products, setProducts] = useState(demoProducts);
+  const [products, setProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
   const [cart, setCart] = useState([]);
   const [buyer, setBuyer] = useState('');
   const [notice, setNotice] = useState('');
-  const [apiStatus, setApiStatus] = useState('Demo data');
+  const [apiStatus, setApiStatus] = useState('Loading live products');
 
   useEffect(() => {
     let active = true;
+    let hasLoadedProducts = false;
+    let controller;
 
-    fetch(`${API}/products`)
-      .then(response => {
-        if (!response.ok) throw new Error('API unavailable');
-        return response.json();
-      })
-      .then(data => {
-        if (!active) return;
+    const loadProducts = async () => {
+      controller?.abort();
+      controller = new AbortController();
 
-        if (Array.isArray(data) && data.length > 0) {
+      try {
+        const response = await fetch(`${API}/products`, { signal: controller.signal });
+        if (!response.ok) throw new Error(`Products request failed (${response.status})`);
+
+        const data = await response.json();
+        if (!Array.isArray(data)) throw new Error('Products response was not a list');
+
+        if (active) {
+          hasLoadedProducts = true;
           setProducts(data);
-          setApiStatus('Connected to Spring Boot');
-        } else {
-          setProducts(demoProducts);
-          setApiStatus('Demo data');
+          setLoadingProducts(false);
+          setApiStatus(`Live data - updated ${new Date().toLocaleTimeString()}`);
         }
-      })
-      .catch(() => {
-        if (!active) return;
-        setProducts(demoProducts);
-        setApiStatus('Demo data — backend unavailable');
-      });
+      } catch (error) {
+        if (!active || error.name === 'AbortError') return;
+        setLoadingProducts(false);
+        setApiStatus(
+          hasLoadedProducts
+            ? 'Connection lost - showing last received data'
+            : 'Live product data unavailable'
+        );
+      }
+    };
+
+    loadProducts();
+    const refreshTimer = window.setInterval(loadProducts, 30000);
 
     return () => {
       active = false;
+      controller?.abort();
+      window.clearInterval(refreshTimer);
     };
   }, []);
 
@@ -158,11 +152,6 @@ export default function App() {
   async function placeOrder() {
     if (!buyer.trim() || cart.length === 0) {
       showNotice('Enter your name and add at least one product.');
-      return;
-    }
-
-    if (apiStatus !== 'Connected to Spring Boot') {
-      showNotice('Demo checkout only. Start the backend to save orders.');
       return;
     }
 
@@ -322,10 +311,10 @@ export default function App() {
                   👨‍🌾{' '}
                   {product.farmerName ||
                     product.farmer_name ||
-                    'Local farmer'}
+                    'Farmer not specified'}
                 </p>
 
-                <p>📍 {product.location || 'Nearby village'}</p>
+                <p>📍 {product.location || 'Location not specified'}</p>
 
                 <div className="product-foot">
                   <div>
@@ -347,7 +336,19 @@ export default function App() {
           ))}
         </section>
 
-        {filtered.length === 0 && (
+        {loadingProducts && products.length === 0 && (
+          <div className="empty">Loading live produce from the marketplace...</div>
+        )}
+
+        {!loadingProducts && products.length === 0 && (
+          <div className="empty">
+            {apiStatus === 'Live product data unavailable'
+              ? 'Could not load live products. Check the backend connection and refresh the page.'
+              : 'No products have been listed yet.'}
+          </div>
+        )}
+
+        {products.length > 0 && filtered.length === 0 && (
           <div className="empty">
             No produce found. Try another search.
           </div>
@@ -379,7 +380,7 @@ export default function App() {
           <div>
             <span className="eyebrow">READY WHEN YOU ARE</span>
             <h2>Your produce basket</h2>
-            <p>Review your items before placing a demo order.</p>
+            <p>Review your items before placing your order.</p>
           </div>
 
           {cart.length === 0 ? (
@@ -429,8 +430,7 @@ export default function App() {
               </label>
 
               <button className="primary checkout" onClick={placeOrder}>
-                Place demo order ↗
-              </button>
+                Place ordern>
             </div>
           )}
         </section>
