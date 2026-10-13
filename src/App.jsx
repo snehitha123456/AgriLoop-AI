@@ -430,7 +430,8 @@ export default function App() {
               </label>
 
               <button className="primary checkout" onClick={placeOrder}>
-                Place ordern>
+                Place order ↗
+              </button>
             </div>
           )}
         </section>
