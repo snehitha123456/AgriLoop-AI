@@ -6,8 +6,21 @@ const API = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 const demoProducts = [
   { id: 1, name: 'Tomato', category: 'Vegetables', pricePerKg: 28, quantityKg: 120, farmerName: 'Ravi Kumar', location: 'Village Market' },
   { id: 2, name: 'Onion', category: 'Vegetables', pricePerKg: 32, quantityKg: 90, farmerName: 'Lakshmi Devi', location: 'Greenfield Village' },
-  { id: 3, name: 'Mango', category: 'Fruits', pricePerKg: 65, quantityKg: 75, farmerName: 'Suresh', location: 'Riverbank Village' },
-  { id: 4, name: 'Spinach', category: 'Vegetables', pricePerKg: 18, quantityKg: 45, farmerName: 'Anitha', location: 'Sunrise Village' },
+  { id: 3, name: 'Potato', category: 'Vegetables', pricePerKg: 25, quantityKg: 100, farmerName: 'Ramesh', location: 'Village Market' },
+  { id: 4, name: 'Carrot', category: 'Vegetables', pricePerKg: 40, quantityKg: 50, farmerName: 'Anitha', location: 'Sunrise Village' },
+  { id: 5, name: 'Spinach', category: 'Vegetables', pricePerKg: 18, quantityKg: 45, farmerName: 'Anitha', location: 'Sunrise Village' },
+  { id: 6, name: 'Cabbage', category: 'Vegetables', pricePerKg: 30, quantityKg: 60, farmerName: 'Ravi Kumar', location: 'Village Market' },
+  { id: 7, name: 'Cauliflower', category: 'Vegetables', pricePerKg: 35, quantityKg: 40, farmerName: 'Lakshmi Devi', location: 'Greenfield Village' },
+  { id: 8, name: 'Green Chilli', category: 'Vegetables', pricePerKg: 50, quantityKg: 20, farmerName: 'Suresh', location: 'Riverbank Village' },
+  { id: 9, name: 'Cucumber', category: 'Vegetables', pricePerKg: 25, quantityKg: 35, farmerName: 'Ramesh', location: 'Village Market' },
+  { id: 10, name: 'Brinjal', category: 'Vegetables', pricePerKg: 32, quantityKg: 30, farmerName: 'Anitha', location: 'Sunrise Village' },
+  { id: 11, name: 'Mango', category: 'Fruits', pricePerKg: 65, quantityKg: 75, farmerName: 'Suresh', location: 'Riverbank Village' },
+  { id: 12, name: 'Banana', category: 'Fruits', pricePerKg: 40, quantityKg: 80, farmerName: 'Ravi Kumar', location: 'Village Market' },
+  { id: 13, name: 'Apple', category: 'Fruits', pricePerKg: 120, quantityKg: 25, farmerName: 'Lakshmi Devi', location: 'Greenfield Village' },
+  { id: 14, name: 'Orange', category: 'Fruits', pricePerKg: 60, quantityKg: 40, farmerName: 'Suresh', location: 'Riverbank Village' },
+  { id: 15, name: 'Papaya', category: 'Fruits', pricePerKg: 35, quantityKg: 30, farmerName: 'Ramesh', location: 'Village Market' },
+  { id: 16, name: 'Guava', category: 'Fruits', pricePerKg: 45, quantityKg: 35, farmerName: 'Anitha', location: 'Sunrise Village' },
+  { id: 17, name: 'Watermelon', category: 'Fruits', pricePerKg: 25, quantityKg: 90, farmerName: 'Ravi Kumar', location: 'Village Market' },
 ];
 
 const productImages = {
@@ -40,6 +53,14 @@ function getProductImage(name = '') {
   return productImages[name.trim().toLowerCase()] || '🌱';
 }
 
+function getPrice(product) {
+  return Number(product.pricePerKg ?? product.price_per_kg ?? 0);
+}
+
+function getQuantity(product) {
+  return Number(product.quantityKg ?? product.quantity_kg ?? 0);
+}
+
 export default function App() {
   const [products, setProducts] = useState(demoProducts);
   const [search, setSearch] = useState('');
@@ -50,33 +71,56 @@ export default function App() {
   const [apiStatus, setApiStatus] = useState('Demo data');
 
   useEffect(() => {
+    let active = true;
+
     fetch(`${API}/products`)
       .then(response => {
-        if (!response.ok) {
-          throw new Error('API unavailable');
-        }
+        if (!response.ok) throw new Error('API unavailable');
         return response.json();
       })
       .then(data => {
-        setProducts(data);
-        setApiStatus('Connected to Spring Boot');
+        if (!active) return;
+
+        if (Array.isArray(data) && data.length > 0) {
+          setProducts(data);
+          setApiStatus('Connected to Spring Boot');
+        } else {
+          setProducts(demoProducts);
+          setApiStatus('Demo data');
+        }
       })
       .catch(() => {
-        setApiStatus('Demo data — start backend to load MySQL products');
+        if (!active) return;
+        setProducts(demoProducts);
+        setApiStatus('Demo data — backend unavailable');
       });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const filtered = useMemo(
-    () =>
-      products.filter(product =>
-        (category === 'All' ||
-          product.category?.toLowerCase() === category.toLowerCase()) &&
-        product.name.toLowerCase().includes(search.toLowerCase())
-      ),
-    [products, search, category]
-  );
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
 
-  const addToCart = product => {
+    return products.filter(product => {
+      const name = String(product.name || '').toLowerCase();
+      const productCategory = String(product.category || '').toLowerCase();
+
+      return (
+        (category === 'All' ||
+          productCategory === category.toLowerCase()) &&
+        name.includes(query)
+      );
+    });
+  }, [products, search, category]);
+
+  function showNotice(message) {
+    setNotice(message);
+    window.setTimeout(() => setNotice(''), 3000);
+  }
+
+  function addToCart(product) {
     setCart(old => {
       const found = old.find(item => item.id === product.id);
 
@@ -89,22 +133,36 @@ export default function App() {
         : [...old, { ...product, quantity: 1 }];
     });
 
-    setNotice(`${product.name} added to order`);
-    setTimeout(() => setNotice(''), 2200);
-  };
+    showNotice(`${product.name} added to your basket`);
+  }
+
+  function changeQuantity(id, change) {
+    setCart(old =>
+      old
+        .map(item =>
+          item.id === id
+            ? { ...item, quantity: item.quantity + change }
+            : item
+        )
+        .filter(item => item.quantity > 0)
+    );
+  }
+
+  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const total = cart.reduce(
-    (sum, product) =>
-      sum +
-      Number(product.pricePerKg ?? product.price_per_kg) *
-        product.quantity,
+    (sum, item) => sum + getPrice(item) * item.quantity,
     0
   );
 
   async function placeOrder() {
     if (!buyer.trim() || cart.length === 0) {
-      setNotice('Enter your name and add at least one product.');
-      setTimeout(() => setNotice(''), 3500);
+      showNotice('Enter your name and add at least one product.');
+      return;
+    }
+
+    if (apiStatus !== 'Connected to Spring Boot') {
+      showNotice('Demo checkout only. Start the backend to save orders.');
       return;
     }
 
@@ -114,30 +172,24 @@ export default function App() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            buyerName: buyer,
+            buyerName: buyer.trim(),
             productId: item.id,
             quantityKg: item.quantity,
-            totalPrice:
-              Number(item.pricePerKg ?? item.price_per_kg) *
-              item.quantity,
+            totalPrice: getPrice(item) * item.quantity,
           }),
         });
 
         if (!response.ok) {
-          throw new Error('Order API failed');
+          throw new Error('Order request failed');
         }
       }
 
-      setNotice('Order placed successfully!');
       setCart([]);
       setBuyer('');
+      showNotice('Order placed successfully!');
     } catch {
-      setNotice(
-        'Demo checkout only: start Spring Boot and MySQL to save orders.'
-      );
+      showNotice('Could not save the order. Check the backend API.');
     }
-
-    setTimeout(() => setNotice(''), 3500);
   }
 
   return (
@@ -157,7 +209,7 @@ export default function App() {
         </div>
 
         <a className="cart-jump" href="#order">
-          My order <b>{cart.reduce((sum, item) => sum + item.quantity, 0)}</b>
+          My order <b>{cartCount}</b>
         </a>
       </header>
 
@@ -273,22 +325,13 @@ export default function App() {
                     'Local farmer'}
                 </p>
 
-                <p>
-                  📍 {product.location || 'Nearby village'}
-                </p>
+                <p>📍 {product.location || 'Nearby village'}</p>
 
                 <div className="product-foot">
                   <div>
-                    <b>
-                      ₹
-                      {product.pricePerKg ??
-                        product.price_per_kg}
-                    </b>
+                    <b>₹{getPrice(product)}</b>
                     <small>
-                      per kg ·{' '}
-                      {product.quantityKg ??
-                        product.quantity_kg}{' '}
-                      kg available
+                      per kg · {getQuantity(product)} kg available
                     </small>
                   </div>
 
@@ -348,29 +391,26 @@ export default function App() {
               {cart.map(product => (
                 <div className="basket-row" key={product.id}>
                   <span>
-                    {product.name}{' '}
-                    <small>× {product.quantity} kg</small>
+                    {product.name} <small>× {product.quantity} kg</small>
                   </span>
 
-                  <b>
-                    ₹
-                    {(
-                      Number(
-                        product.pricePerKg ??
-                          product.price_per_kg
-                      ) * product.quantity
-                    ).toFixed(2)}
-                  </b>
+                  <b>₹{(getPrice(product) * product.quantity).toFixed(2)}</b>
 
-                  <button
-                    onClick={() =>
-                      setCart(old =>
-                        old.filter(item => item.id !== product.id)
-                      )
-                    }
-                  >
-                    Remove
-                  </button>
+                  <div className="quantity-controls">
+                    <button
+                      onClick={() => changeQuantity(product.id, -1)}
+                      aria-label={`Decrease ${product.name}`}
+                    >
+                      −
+                    </button>
+                    <span>{product.quantity}</span>
+                    <button
+                      onClick={() => changeQuantity(product.id, 1)}
+                      aria-label={`Increase ${product.name}`}
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
               ))}
 
@@ -388,10 +428,7 @@ export default function App() {
                 />
               </label>
 
-              <button
-                className="primary checkout"
-                onClick={placeOrder}
-              >
+              <button className="primary checkout" onClick={placeOrder}>
                 Place demo order ↗
               </button>
             </div>
